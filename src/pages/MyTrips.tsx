@@ -1,0 +1,198 @@
+"use client";
+
+import React from 'react';
+import Navbar from '@/components/layout/Navbar';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, ChevronRight, Trash2, MoreVertical, Map } from 'lucide-react';
+
+import { motion, AnimatePresence } from 'framer-motion';
+import RouteDetails from '@/components/travel/RouteDetails';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { showError, showSuccess } from '@/utils/toast';
+import { tripsApi } from '@/services/api';
+
+const formatTripCost = (value: string | number | undefined) => {
+  const numeric = typeof value === 'number' ? value : Number(value || 0);
+  return `₹${numeric.toLocaleString()}`;
+};
+
+const formatTripDuration = (minutes: number | string | undefined) => {
+  const totalMinutes = Number(minutes || 0);
+  if (!totalMinutes) return '—';
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = Math.round(totalMinutes % 60);
+  return `${hours}h ${mins}m`;
+};
+
+const MyTrips = () => {
+interface Trip {
+  id?: string;
+  _id?: string;
+  source?: string;
+  destination?: string;
+  date: string;
+  cost?: string | number;
+  full_route?: Record<string, unknown>;
+  fullRoute?: Record<string, unknown>;
+}
+
+  const [selectedTrip, setSelectedTrip] = React.useState<Trip | null>(null);
+  const [trips, setTrips] = React.useState<Trip[]>([]);
+
+  const loadTrips = async () => {
+    try {
+      const response =
+        await tripsApi.getTrips();
+
+      setTrips(response.data.trips || []);
+    } catch (error) {
+      const storedTrips =
+        JSON.parse(localStorage.getItem('bookedTrips') || '[]');
+
+      setTrips(storedTrips);
+      showError("Showing locally saved trips because the server is unavailable.");
+    }
+  };
+
+  React.useEffect(() => {
+    loadTrips();
+  }, []);
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    try {
+      await tripsApi.deleteTrip(id);
+    } catch (error) {
+      const localTrips =
+        JSON.parse(localStorage.getItem('bookedTrips') || '[]');
+
+      localStorage.setItem(
+        'bookedTrips',
+        JSON.stringify(localTrips.filter((t: Trip) => t.id !== id))
+      );
+    }
+
+    const updatedTrips =
+      trips.filter(t => (t._id || t.id) !== id);
+
+    setTrips(updatedTrips);
+    showSuccess("Trip removed successfully");
+  };
+
+  const getStatus = (dateStr: string) => {
+    const tripDate = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    tripDate.setHours(0, 0, 0, 0);
+
+    if (tripDate.getTime() === today.getTime()) return { label: 'Ongoing', color: 'bg-emerald-500' };
+    if (tripDate.getTime() < today.getTime()) return { label: 'Completed', color: 'bg-slate-400' };
+    return { label: 'Upcoming', color: 'bg-primary' };
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col">
+      <Navbar />
+      
+      <main className="flex-1 pt-24 pb-12 px-4 lg:px-8 container mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold">My Trips</h1>
+          <p className="text-slate-500 text-sm">Manage your journeys and track their status.</p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
+          <AnimatePresence mode="popLayout">
+            {trips.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-[2rem] border border-dashed border-slate-200">
+                <Calendar className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                <p className="text-slate-400 font-medium">No trips found. Start planning your next journey!</p>
+              </div>
+            ) : (
+              trips.map((trip, idx) => {
+                const status = getStatus(trip.date);
+                return (
+                  <motion.div
+                    key={trip._id || trip.id}
+                    layout
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ delay: idx * 0.05 }}
+                  >
+                    <Card 
+                      className="p-6 bg-white border-slate-200 hover:border-primary/30 transition-all group cursor-pointer shadow-sm rounded-3xl relative overflow-hidden"
+                      onClick={() => setSelectedTrip(trip)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-6">
+                          <div className={`w-16 h-16 rounded-2xl ${status.color}/10 flex items-center justify-center`}>
+                            <Map className={`${status.color.replace('bg-', 'text-')} w-8 h-8`} />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-xl font-bold text-slate-900">{trip.source} → {trip.destination}</h3>
+                              <Badge className={`${status.color} text-white border-none rounded-full px-3`}>
+                                {status.label}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-slate-500">
+                              <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(trip.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                              <span className="flex items-center gap-1 font-bold text-primary">{formatTripCost(trip.cost)}</span>
+                              <span className="text-slate-400">•</span>
+                              <span>{trip.durationMinutes ? formatTripDuration(trip.durationMinutes) : 'Flexible timing'}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <button className="p-2 rounded-full hover:bg-slate-50 text-slate-400">
+                                <MoreVertical className="w-5 h-5" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-xl">
+                              <DropdownMenuItem 
+                                className="text-red-500 focus:text-red-500 focus:bg-red-50 cursor-pointer gap-2 font-bold"
+                                onClick={(e) => handleDelete(trip._id || trip.id, e)}
+                              >
+                                <Trash2 className="w-4 h-4" /> Remove Trip
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all">
+                            <ChevronRight className="w-5 h-5" />
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                );
+              })
+            )}
+          </AnimatePresence>
+        </div>
+
+        <RouteDetails 
+          route={selectedTrip?.full_route || selectedTrip?.fullRoute || null} 
+          isOpen={!!selectedTrip} 
+          onClose={() => setSelectedTrip(null)} 
+          searchedSource={selectedTrip?.source}
+          searchedDest={selectedTrip?.destination}
+          searchedDate={selectedTrip?.date}
+          showBooking={false}
+          isSatellite={true}
+        />
+      </main>
+    </div>
+  );
+};
+
+export default MyTrips;
