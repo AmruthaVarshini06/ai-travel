@@ -9,15 +9,15 @@
     "seed": "node seedTransportData.js"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.1.0",
+    "@google/generative-ai": "^0.1.3",
     "axios": "^1.16.0",
     "bcrypt": "^6.0.0",
-    "cors": "^2.8.5",
+    "cors": "^2.8.6",
     "dotenv": "^16.6.1",
-    "express": "^4.18.2",
+    "express": "^4.22.2",
     "groq-sdk": "^1.2.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^7.8.9",
+    "mongoose": "^7.8.11",
     "path": "^0.12.7",
     "zod": "^4.4.3"
   },
